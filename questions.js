@@ -53,7 +53,6 @@ module.exports = {
                 "slow down slightly and keep to the left",
                 "increase your speed and keep to the right"
             ]
-
         },
         {
             "A driver entering a traffic circle or rotary must yield the right-of-way to": [
@@ -95,7 +94,6 @@ module.exports = {
                 "Acceleration lanes",
                 "Roundabouts"
             ]
-
         },
         {
             "When you don't see a posted speed limit in New York City, you must drive at": [
@@ -112,7 +110,6 @@ module.exports = {
                 "increase your speed",
                 "apply brakes and discourage the driver"
             ]
-
         },
         {
             "When making a turn, the law requires you to signal a turn with your directional lights or hand signals at least": [
@@ -142,7 +139,7 @@ module.exports = {
             "When confronted by an aggressive driver while driving, avoid conflict by": [
                 "avoiding eye contact",
                 "stopping and getting out of your vehicle",
-                "using gestures",           
+                "using gestures",
                 "name-calling"
             ]
         },
@@ -155,7 +152,7 @@ module.exports = {
             ]
         },
         {
-            "Fill in the blank. You must blank for an emergency vehicle, if it is coming toward you with its lights flashing, even if it's in the opposite lane of a two-way roadway.": []
+            "Fill in the blank. You must blank for an emergency vehicle, if it is coming toward you with its lights flashing, even if it's in the opposite lane of a two-way roadway.": [
                 "pull over and stop",
                 "increase the speed and clear the lane",
                 "slow down and move over to the left lane",
@@ -241,6 +238,6 @@ module.exports = {
                 "in the front seats",
                 "in the rear seats and those under the age of 16 in the front seats"
             ]
-        }
+        }        
     ]
 }
