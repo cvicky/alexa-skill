@@ -1,403 +1,325 @@
-'use strict';
-const Alexa = require('alexa-sdk');
+"use strict";
+var APP_ID = undefined;  // TODO replace with your app ID (OPTIONAL).
 
-//=========================================================================================================================================
-//TODO: The items below this comment need your attention
-//=========================================================================================================================================
-
-//Replace with your app ID (OPTIONAL).  You can find this value at the top of your skill's page on http://developer.amazon.com.
-//Make sure to enclose your value in quotes, like this:  var APP_ID = "amzn1.ask.skill.bb4045e6-b3e8-4133-b650-72923c5980f1";
-var APP_ID = undefined;
-
-//This function returns a descriptive sentence about your data.  Before a user starts a quiz, they can ask about a specific data element,
-//like "Ohio."  The skill will speak the sentence from this function, pulling the data values from the appropriate record in your data.
-function getSpeechDescription(item)
-{
-    var sentence = item.StateName + " is the " + item.StatehoodOrder + "th state, admitted to the Union in " + item.StatehoodYear + ".  The capital of " + item.StateName + " is " + item.Capital + ", and the abbreviation for " + item.StateName + " is <break strength='strong'/><say-as interpret-as='spell-out'>" + item.Abbreviation + "</say-as>.  I've added " + item.StateName + " to your Alexa app.  Which other state or capital would you like to know about?";
-    return sentence;
-}
-
-//We have provided two ways to create your quiz questions.  The default way is to phrase all of your questions like: "What is X of Y?"
-//If this approach doesn't work for your data, take a look at the commented code in this function.  You can write a different question
-//structure for each property of your data.
-function getQuestion(counter, property, item)
-{
-    return "Here is your " + counter + "th question.  What is the " + formatCasing(property) + " of "  + item.StateName + "?";
-
-    /*
-    switch(property)
-    {
-        case "City":
-            return "Here is your " + counter + "th question.  In what city do the " + item.League + "'s "  + item.Mascot + " play?";
-        break;
-        case "Sport":
-            return "Here is your " + counter + "th question.  What sport do the " + item.City + " " + item.Mascot + " play?";
-        break;
-        case "HeadCoach":
-            return "Here is your " + counter + "th question.  Who is the head coach of the " + item.City + " " + item.Mascot + "?";
-        break;
-        default:
-            return "Here is your " + counter + "th question.  What is the " + formatCasing(property) + " of the "  + item.Mascot + "?";
-        break;
-    }
-    */
-}
-
-//This is the function that returns an answer to your user during the quiz.  Much like the "getQuestion" function above, you can use a
-//switch() statement to create different responses for each property in your data.  For example, when this quiz has an answer that includes
-//a state abbreviation, we add some SSML to make sure that Alexa spells that abbreviation out (instead of trying to pronounce it.)
-function getAnswer(property, item)
-{
-    switch(property)
-    {
-        case "Abbreviation":
-            return "The " + formatCasing(property) + " of " + item.StateName + " is <say-as interpret-as='spell-out'>" + item[property] + "</say-as>. "
-        break;
-        default:
-            return "The " + formatCasing(property) + " of " + item.StateName + " is " + item[property] + ". "
-        break;
-    }
-}
-
-//This is a list of positive speechcons that this skill will use when a user gets a correct answer.  For a full list of supported
-//speechcons, go here: https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/speechcon-reference
-var speechConsCorrect = ["Booya", "All righty", "Bam", "Bazinga", "Bingo", "Boom", "Bravo", "Cha Ching", "Cheers", "Dynomite",
-"Hip hip hooray", "Hurrah", "Hurray", "Huzzah", "Oh dear.  Just kidding.  Hurray", "Kaboom", "Kaching", "Oh snap", "Phew",
-"Righto", "Way to go", "Well done", "Whee", "Woo hoo", "Yay", "Wowza", "Yowsa"];
-
-//This is a list of negative speechcons that this skill will use when a user gets an incorrect answer.  For a full list of supported
-//speechcons, go here: https://developer.amazon.com/public/solutions/alexa/alexa-skills-kit/docs/speechcon-reference
-var speechConsWrong = ["Argh", "Aw man", "Blarg", "Blast", "Boo", "Bummer", "Darn", "D'oh", "Dun dun dun", "Eek", "Honk", "Le sigh",
-"Mamma mia", "Oh boy", "Oh dear", "Oof", "Ouch", "Ruh roh", "Shucks", "Uh oh", "Wah wah", "Whoops a daisy", "Yikes"];
-
-//This is the welcome message for when a user starts the skill without a specific intent.
-var WELCOME_MESSAGE = "Welcome to the United States Quiz Game!  You can ask me about any of the fifty states and their capitals, or you can ask me to start a quiz.  What would you like to do?";
-
-//This is the message a user will hear when they start a quiz.
-var START_QUIZ_MESSAGE = "OK.  I will ask you 10 questions about the United States.";
-
-//This is the message a user will hear when they try to cancel or stop the skill, or when they finish a quiz.
-var EXIT_SKILL_MESSAGE = "Thank you for playing the United States Quiz Game!  Let's play again soon!";
-
-//This is the message a user will hear after they ask (and hear) about a specific data element.
-var REPROMPT_SPEECH = "Which other state or capital would you like to know about?";
-
-//This is the message a user will hear when they ask Alexa for help in your skill.
-var HELP_MESSAGE = "I know lots of things about the United States.  You can ask me about a state or a capital, and I'll tell you what I know.  You can also test your knowledge by asking me to start a quiz.  What would you like to do?";
-
-
-//This is the response a user will receive when they ask about something we weren't expecting.  For example, say "pizza" to your
-//skill when it starts.  This is the response you will receive.
-function getBadAnswer(item) { return "I'm sorry. " + item + " is not something I know very much about in this skill. " + HELP_MESSAGE; }
-
-//This is the message a user will receive after each question of a quiz.  It reminds them of their current score.
-function getCurrentScore(score, counter) { return "Your current score is " + score + " out of " + counter + ". "; }
-
-//This is the message a user will receive after they complete a quiz.  It tells them their final score.
-function getFinalScore(score, counter) { return "Your final score is " + score + " out of " + counter + ". "; }
-
-//These next four values are for the Alexa cards that are created when a user asks about one of the data elements.
-//This only happens outside of a quiz.
-
-//If you don't want to use cards in your skill, set the USE_CARDS_FLAG to false.  If you set it to true, you will need an image for each
-//item in your data.
-var USE_CARDS_FLAG = true;
-
-//This is what your card title will be.  For our example, we use the name of the state the user requested.
-function getCardTitle(item) { return item.StateName;}
-
-//This is the small version of the card image.  We use our data as the naming convention for our images so that we can dynamically
-//generate the URL to the image.  The small image should be 720x400 in dimension.
-function getSmallImage(item) { return "https://m.media-amazon.com/images/G/01/mobile-apps/dex/alexa/alexa-skills-kit/tutorials/quiz-game/state_flag/720x400/" + item.Abbreviation + "._TTH_.png"; }
-
-//This is the large version of the card image.  It should be 1200x800 pixels in dimension.
-function getLargeImage(item) { return "https://m.media-amazon.com/images/G/01/mobile-apps/dex/alexa/alexa-skills-kit/tutorials/quiz-game/state_flag/1200x800/" + item.Abbreviation + "._TTH_.png"; }
-
-//=========================================================================================================================================
-//TODO: Replace this data with your own.
-//=========================================================================================================================================
-var data = [
-                {StateName: "Alabama",        Abbreviation: "AL", Capital: "Montgomery",     StatehoodYear: 1819, StatehoodOrder: 22 },
-                {StateName: "Alaska",         Abbreviation: "AK", Capital: "Juneau",         StatehoodYear: 1959, StatehoodOrder: 49 },
-                {StateName: "Arizona",        Abbreviation: "AZ", Capital: "Phoenix",        StatehoodYear: 1912, StatehoodOrder: 48 },
-                {StateName: "Arkansas",       Abbreviation: "AR", Capital: "Little Rock",    StatehoodYear: 1836, StatehoodOrder: 25 },
-                {StateName: "California",     Abbreviation: "CA", Capital: "Sacramento",     StatehoodYear: 1850, StatehoodOrder: 31 },
-                {StateName: "Colorado",       Abbreviation: "CO", Capital: "Denver",         StatehoodYear: 1876, StatehoodOrder: 38 },
-                {StateName: "Connecticut",    Abbreviation: "CT", Capital: "Hartford",       StatehoodYear: 1788, StatehoodOrder: 5 },
-                {StateName: "Delaware",       Abbreviation: "DE", Capital: "Dover",          StatehoodYear: 1787, StatehoodOrder: 1 },
-                {StateName: "Florida",        Abbreviation: "FL", Capital: "Tallahassee",    StatehoodYear: 1845, StatehoodOrder: 27 },
-                {StateName: "Georgia",        Abbreviation: "GA", Capital: "Atlanta",        StatehoodYear: 1788, StatehoodOrder: 4 },
-                {StateName: "Hawaii",         Abbreviation: "HI", Capital: "Honolulu",       StatehoodYear: 1959, StatehoodOrder: 50 },
-                {StateName: "Idaho",          Abbreviation: "ID", Capital: "Boise",          StatehoodYear: 1890, StatehoodOrder: 43 },
-                {StateName: "Illinois",       Abbreviation: "IL", Capital: "Springfield",    StatehoodYear: 1818, StatehoodOrder: 21 },
-                {StateName: "Indiana",        Abbreviation: "IN", Capital: "Indianapolis",   StatehoodYear: 1816, StatehoodOrder: 19 },
-                {StateName: "Iowa",           Abbreviation: "IA", Capital: "Des Moines",     StatehoodYear: 1846, StatehoodOrder: 29 },
-                {StateName: "Kansas",         Abbreviation: "KS", Capital: "Topeka",         StatehoodYear: 1861, StatehoodOrder: 34 },
-                {StateName: "Kentucky",       Abbreviation: "KY", Capital: "Frankfort",      StatehoodYear: 1792, StatehoodOrder: 15 },
-                {StateName: "Louisiana",      Abbreviation: "LA", Capital: "Baton Rouge",    StatehoodYear: 1812, StatehoodOrder: 18 },
-                {StateName: "Maine",          Abbreviation: "ME", Capital: "Augusta",        StatehoodYear: 1820, StatehoodOrder: 23 },
-                {StateName: "Maryland",       Abbreviation: "MD", Capital: "Annapolis",      StatehoodYear: 1788, StatehoodOrder: 7 },
-                {StateName: "Massachusetts",  Abbreviation: "MA", Capital: "Boston",         StatehoodYear: 1788, StatehoodOrder: 6 },
-                {StateName: "Michigan",       Abbreviation: "MI", Capital: "Lansing",        StatehoodYear: 1837, StatehoodOrder: 26 },
-                {StateName: "Minnesota",      Abbreviation: "MN", Capital: "St. Paul",       StatehoodYear: 1858, StatehoodOrder: 32 },
-                {StateName: "Mississippi",    Abbreviation: "MS", Capital: "Jackson",        StatehoodYear: 1817, StatehoodOrder: 20 },
-                {StateName: "Missouri",       Abbreviation: "MO", Capital: "Jefferson City", StatehoodYear: 1821, StatehoodOrder: 24 },
-                {StateName: "Montana",        Abbreviation: "MT", Capital: "Helena",         StatehoodYear: 1889, StatehoodOrder: 41 },
-                {StateName: "Nebraska",       Abbreviation: "NE", Capital: "Lincoln",        StatehoodYear: 1867, StatehoodOrder: 37 },
-                {StateName: "Nevada",         Abbreviation: "NV", Capital: "Carson City",    StatehoodYear: 1864, StatehoodOrder: 36 },
-                {StateName: "New Hampshire",  Abbreviation: "NH", Capital: "Concord",        StatehoodYear: 1788, StatehoodOrder: 9 },
-                {StateName: "New Jersey",     Abbreviation: "NJ", Capital: "Trenton",        StatehoodYear: 1787, StatehoodOrder: 3 },
-                {StateName: "New Mexico",     Abbreviation: "NM", Capital: "Santa Fe",       StatehoodYear: 1912, StatehoodOrder: 47 },
-                {StateName: "New York",       Abbreviation: "NY", Capital: "Albany",         StatehoodYear: 1788, StatehoodOrder: 11 },
-                {StateName: "North Carolina", Abbreviation: "NC", Capital: "Raleigh",        StatehoodYear: 1789, StatehoodOrder: 12 },
-                {StateName: "North Dakota",   Abbreviation: "ND", Capital: "Bismarck",       StatehoodYear: 1889, StatehoodOrder: 39 },
-                {StateName: "Ohio",           Abbreviation: "OH", Capital: "Columbus",       StatehoodYear: 1803, StatehoodOrder: 17 },
-                {StateName: "Oklahoma",       Abbreviation: "OK", Capital: "Oklahoma City",  StatehoodYear: 1907, StatehoodOrder: 46 },
-                {StateName: "Oregon",         Abbreviation: "OR", Capital: "Salem",          StatehoodYear: 1859, StatehoodOrder: 33 },
-                {StateName: "Pennsylvania",   Abbreviation: "PA", Capital: "Harrisburg",     StatehoodYear: 1787, StatehoodOrder: 2 },
-                {StateName: "Rhode Island",   Abbreviation: "RI", Capital: "Providence",     StatehoodYear: 1790, StatehoodOrder: 13 },
-                {StateName: "South Carolina", Abbreviation: "SC", Capital: "Columbia",       StatehoodYear: 1788, StatehoodOrder: 8 },
-                {StateName: "South Dakota",   Abbreviation: "SD", Capital: "Pierre",         StatehoodYear: 1889, StatehoodOrder: 40 },
-                {StateName: "Tennessee",      Abbreviation: "TN", Capital: "Nashville",      StatehoodYear: 1796, StatehoodOrder: 16 },
-                {StateName: "Texas",          Abbreviation: "TX", Capital: "Austin",         StatehoodYear: 1845, StatehoodOrder: 28 },
-                {StateName: "Utah",           Abbreviation: "UT", Capital: "Salt Lake City", StatehoodYear: 1896, StatehoodOrder: 45 },
-                {StateName: "Vermont",        Abbreviation: "VT", Capital: "Montpelier",     StatehoodYear: 1791, StatehoodOrder: 14 },
-                {StateName: "Virginia",       Abbreviation: "VA", Capital: "Richmond",       StatehoodYear: 1788, StatehoodOrder: 10 },
-                {StateName: "Washington",     Abbreviation: "WA", Capital: "Olympia",        StatehoodYear: 1889, StatehoodOrder: 42 },
-                {StateName: "West Virginia",  Abbreviation: "WV", Capital: "Charleston",     StatehoodYear: 1863, StatehoodOrder: 35 },
-                {StateName: "Wisconsin",      Abbreviation: "WI", Capital: "Madison",        StatehoodYear: 1848, StatehoodOrder: 30 },
-                {StateName: "Wyoming",        Abbreviation: "WY", Capital: "Cheyenne",       StatehoodYear: 1890, StatehoodOrder: 44 }
-            ];
-
-//=========================================================================================================================================
-//Editing anything below this line might break your skill.
-//=========================================================================================================================================
-
-var counter = 0;
-
-var states = {
-    START: "_START",
-    QUIZ: "_QUIZ"
+var ANSWER_COUNT = 4; // The number of possible answers per trivia question.
+var GAME_LENGTH = 5;  // The number of questions per trivia game.
+var GAME_STATES = {
+    TRIVIA: "_TRIVIAMODE", // Asking trivia questions.
+    START: "_STARTMODE", // Entry point, start the game.
+    HELP: "_HELPMODE" // The user is asking for help.
 };
+var questions = require("./questions");
 
-const handlers = {
-     "LaunchRequest": function() {
-        this.handler.state = states.START;
-        this.emitWithState("Start");
-     },
-    "QuizIntent": function() {
-        this.handler.state = states.QUIZ;
-        this.emitWithState("Quiz");
+/**
+ * When editing your questions pay attention to your punctuation. Make sure you use question marks or periods.
+ * Make sure the first answer is the correct one. Set at least ANSWER_COUNT answers, any extras will be shuffled in.
+ */
+var languageString = {
+    "en": {
+        "translation": {
+            "QUESTIONS" : questions["QUESTIONS_EN_US"],
+            "GAME_NAME" : "Reindeer Trivia", // Be sure to change this for your skill.
+            "HELP_MESSAGE": "I will ask you %s multiple choice questions. Respond with the number of the answer. " +
+            "For example, say one, two, three, or four. To start a new game at any time, say, start game. ",
+            "REPEAT_QUESTION_MESSAGE": "To repeat the last question, say, repeat. ",
+            "ASK_MESSAGE_START": "Would you like to start playing?",
+            "HELP_REPROMPT": "To give an answer to a question, respond with the number of the answer. ",
+            "STOP_MESSAGE": "Would you like to keep playing?",
+            "CANCEL_MESSAGE": "Ok, let\'s play again soon.",
+            "NO_MESSAGE": "Ok, we\'ll play another time. Goodbye!",
+            "TRIVIA_UNHANDLED": "Try saying a number between 1 and %s",
+            "HELP_UNHANDLED": "Say yes to continue, or no to end the game.",
+            "START_UNHANDLED": "Say start to start a new game.",
+            "NEW_GAME_MESSAGE": "Welcome to %s. ",
+            "WELCOME_MESSAGE": "I will ask you %s questions, try to get as many right as you can. " +
+            "Just say the number of the answer. Let\'s begin. ",
+            "ANSWER_CORRECT_MESSAGE": "correct. ",
+            "ANSWER_WRONG_MESSAGE": "wrong. ",
+            "CORRECT_ANSWER_MESSAGE": "The correct answer is %s: %s. ",
+            "ANSWER_IS_MESSAGE": "That answer is ",
+            "TELL_QUESTION_MESSAGE": "Question %s. %s ",
+            "GAME_OVER_MESSAGE": "You got %s out of %s questions correct. Thank you for playing!",
+            "SCORE_IS_MESSAGE": "Your score is %s. "
+        }
     },
-    "AnswerIntent": function() {
-        this.handler.state = states.START;
-        this.emitWithState("AnswerIntent");
-    },
-    "AMAZON.HelpIntent": function() {
-        this.emit(":ask", HELP_MESSAGE, HELP_MESSAGE);
-    },
-    "Unhandled": function() {
-        this.handler.state = states.START;
-        this.emitWithState("Start");
+    "en-US": {
+        "translation": {
+            "QUESTIONS" : questions["QUESTIONS_EN_US"],
+            "GAME_NAME" : "American New York Learner's Permit Questions" // Be sure to change this for your skill.
+        }
     }
 };
 
-var startHandlers = Alexa.CreateStateHandler(states.START,{
-    "Start": function() {
-        this.emit(":ask", WELCOME_MESSAGE, HELP_MESSAGE);
-    },
-    "AnswerIntent": function() {
-        var item = getItem(this.event.request.intent.slots);
+var Alexa = require("alexa-sdk");
+var APP_ID = undefined;  // TODO replace with your app ID (OPTIONAL).
 
-        if (item && item[Object.getOwnPropertyNames(data[0])[0]] != undefined)
-        {
-          console.log("\nMEMO's TEST\n");
-            if (USE_CARDS_FLAG)
-            {
-                var imageObj = {smallImageUrl: getSmallImage(item), largeImageUrl: getLargeImage(item)};
-                this.emit(":askWithCard", getSpeechDescription(item), REPROMPT_SPEECH, getCardTitle(item), getTextDescription(item), imageObj);
-            }
-            else
-            {
-                this.emit(":ask", getSpeechDescription(item), REPROMPT_SPEECH);
-            }
-        }
-        else
-        {
-            this.emit(":ask", getBadAnswer(item), getBadAnswer(item));
-
-        }
-    },
-    "QuizIntent": function() {
-        this.handler.state = states.QUIZ;
-        this.emitWithState("Quiz");
-    },
-    "AMAZON.StopIntent": function() {
-        this.emit(":tell", EXIT_SKILL_MESSAGE);
-    },
-    "AMAZON.CancelIntent": function() {
-        this.emit(":tell", EXIT_SKILL_MESSAGE);
-    },
-    "AMAZON.HelpIntent": function() {
-        this.emit(":ask", HELP_MESSAGE, HELP_MESSAGE);
-    },
-    "Unhandled": function() {
-        this.emitWithState("Start");
-    }
-});
-
-
-var quizHandlers = Alexa.CreateStateHandler(states.QUIZ,{
-    "Quiz": function() {
-        this.attributes["response"] = "";
-        this.attributes["counter"] = 0;
-        this.attributes["quizscore"] = 0;
-        this.emitWithState("AskQuestion");
-    },
-    "AskQuestion": function() {
-        if (this.attributes["counter"] == 0)
-        {
-            this.attributes["response"] = START_QUIZ_MESSAGE + " ";
-        }
-
-        var random = getRandom(0, data.length-1);
-        var item = data[random];
-
-        var propertyArray = Object.getOwnPropertyNames(item);
-        var property = propertyArray[getRandom(1, propertyArray.length-1)];
-
-        this.attributes["quizitem"] = item;
-        this.attributes["quizproperty"] = property;
-        this.attributes["counter"]++;
-
-        var question = getQuestion(this.attributes["counter"], property, item);
-        var speech = this.attributes["response"] + question;
-
-        this.emit(":ask", speech, question);
-    },
-    "AnswerIntent": function() {
-        var response = "";
-        var item = this.attributes["quizitem"];
-        var property = this.attributes["quizproperty"]
-
-        var correct = compareSlots(this.event.request.intent.slots, item[property]);
-
-        if (correct)
-        {
-            response = getSpeechCon(true);
-            this.attributes["quizscore"]++;
-        }
-        else
-        {
-            response = getSpeechCon(false);
-        }
-
-        response += getAnswer(property, item);
-
-        if (this.attributes["counter"] < 10)
-        {
-            response += getCurrentScore(this.attributes["quizscore"], this.attributes["counter"]);
-            this.attributes["response"] = response;
-            this.emitWithState("AskQuestion");
-        }
-        else
-        {
-            response += getFinalScore(this.attributes["quizscore"], this.attributes["counter"]);
-            this.emit(":tell", response + " " + EXIT_SKILL_MESSAGE);
-        }
-    },
-    "AMAZON.StartOverIntent": function() {
-        this.emitWithState("Quiz");
-    },
-    "AMAZON.StopIntent": function() {
-        this.emit(":tell", EXIT_SKILL_MESSAGE);
-    },
-    "AMAZON.CancelIntent": function() {
-        this.emit(":tell", EXIT_SKILL_MESSAGE);
-    },
-    "AMAZON.HelpIntent": function() {
-        this.emit(":ask", HELP_MESSAGE, HELP_MESSAGE);
-    },
-    "Unhandled": function() {
-        this.emitWithState("AnswerIntent");
-    }
-});
-
-function compareSlots(slots, value)
-{
-    for (var slot in slots)
-    {
-        if (slots[slot].value != undefined)
-        {
-            if (slots[slot].value.toString().toLowerCase() == value.toString().toLowerCase())
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-function getRandom(min, max)
-{
-    return Math.floor(Math.random() * (max-min+1)+min);
-}
-
-function getRandomSymbolSpeech(symbol)
-{
-    return "<say-as interpret-as='spell-out'>" + symbol + "</say-as>";
-}
-
-function getItem(slots)
-{
-    var propertyArray = Object.getOwnPropertyNames(data[0]);
-    var value;
-
-    for (var slot in slots)
-    {
-        if (slots[slot].value !== undefined)
-        {
-            value = slots[slot].value;
-            for (var property in propertyArray)
-            {
-                var item = data.filter(x => x[propertyArray[property]].toString().toLowerCase() === slots[slot].value.toString().toLowerCase());
-                if (item.length > 0)
-                {
-                    return item[0];
-                }
-            }
-        }
-    }
-    return value;
-}
-
-function getSpeechCon(type)
-{
-    var speechCon = "";
-    if (type) return "<say-as interpret-as='interjection'>" + speechConsCorrect[getRandom(0, speechConsCorrect.length-1)] + "! </say-as><break strength='strong'/>";
-    else return "<say-as interpret-as='interjection'>" + speechConsWrong[getRandom(0, speechConsWrong.length-1)] + " </say-as><break strength='strong'/>";
-}
-
-function formatCasing(key)
-{
-    key = key.split(/(?=[A-Z])/).join(" ");
-    return key;
-}
-
-function getTextDescription(item)
-{
-    var text = "";
-
-    for (var key in item)
-    {
-        text += formatCasing(key) + ": " + item[key] + "\n";
-    }
-    return text;
-}
-
-exports.handler = (event, context) => {
-    const alexa = Alexa.handler(event, context);
+exports.handler = function(event, context, callback) {
+    var alexa = Alexa.handler(event, context);
     alexa.appId = APP_ID;
-    alexa.registerHandlers(handlers, startHandlers, quizHandlers);
+    // To enable string internationalization (i18n) features, set a resources object.
+    alexa.resources = languageString;
+    alexa.registerHandlers(newSessionHandlers, startStateHandlers, triviaStateHandlers, helpStateHandlers);
     alexa.execute();
 };
+
+var newSessionHandlers = {
+    "LaunchRequest": function () {
+        this.handler.state = GAME_STATES.START;
+        this.emitWithState("StartGame", true);
+    },
+    "AMAZON.StartOverIntent": function() {
+        this.handler.state = GAME_STATES.START;
+        this.emitWithState("StartGame", true);
+    },
+    "AMAZON.HelpIntent": function() {
+        this.handler.state = GAME_STATES.HELP;
+        this.emitWithState("helpTheUser", true);
+    },
+    "Unhandled": function () {
+        var speechOutput = this.t("START_UNHANDLED");
+        this.emit(":ask", speechOutput, speechOutput);
+    }
+};
+
+var startStateHandlers = Alexa.CreateStateHandler(GAME_STATES.START, {
+    "StartGame": function (newGame) {
+        var speechOutput = newGame ? this.t("NEW_GAME_MESSAGE", this.t("GAME_NAME")) + this.t("WELCOME_MESSAGE", GAME_LENGTH.toString()) : "";
+        // Select GAME_LENGTH questions for the game
+        var translatedQuestions = this.t("QUESTIONS");
+        var gameQuestions = populateGameQuestions(translatedQuestions);
+        // Generate a random index for the correct answer, from 0 to 3
+        var correctAnswerIndex = Math.floor(Math.random() * (ANSWER_COUNT));
+        // Select and shuffle the answers for each question
+        var roundAnswers = populateRoundAnswers(gameQuestions, 0, correctAnswerIndex, translatedQuestions);
+        var currentQuestionIndex = 0;
+        var spokenQuestion = Object.keys(translatedQuestions[gameQuestions[currentQuestionIndex]])[0];
+        var repromptText = this.t("TELL_QUESTION_MESSAGE", "1", spokenQuestion);
+
+        for (var i = 0; i < ANSWER_COUNT; i++) {
+            repromptText += (i+1).toString() + ". " + roundAnswers[i] + ". ";
+        }
+
+        speechOutput += repromptText;
+
+        Object.assign(this.attributes, {
+            "speechOutput": repromptText,
+            "repromptText": repromptText,
+            "currentQuestionIndex": currentQuestionIndex,
+            "correctAnswerIndex": correctAnswerIndex + 1,
+            "questions": gameQuestions,
+            "score": 0,
+            "correctAnswerText": translatedQuestions[gameQuestions[currentQuestionIndex]][Object.keys(translatedQuestions[gameQuestions[currentQuestionIndex]])[0]][0]
+        });
+
+        // Set the current state to trivia mode. The skill will now use handlers defined in triviaStateHandlers
+        this.handler.state = GAME_STATES.TRIVIA;
+        this.emit(":askWithCard", speechOutput, repromptText, this.t("GAME_NAME"), repromptText);
+    }
+});
+
+var triviaStateHandlers = Alexa.CreateStateHandler(GAME_STATES.TRIVIA, {
+    "AnswerIntent": function () {
+        handleUserGuess.call(this, false);
+    },
+    "DontKnowIntent": function () {
+        handleUserGuess.call(this, true);
+    },
+    "AMAZON.StartOverIntent": function () {
+        this.handler.state = GAME_STATES.START;
+        this.emitWithState("StartGame", false);
+    },
+    "AMAZON.RepeatIntent": function () {
+        this.emit(":ask", this.attributes["speechOutput"], this.attributes["repromptText"]);
+    },
+    "AMAZON.HelpIntent": function () {
+        this.handler.state = GAME_STATES.HELP;
+        this.emitWithState("helpTheUser", false);
+    },
+    "AMAZON.StopIntent": function () {
+        this.handler.state = GAME_STATES.HELP;
+        var speechOutput = this.t("STOP_MESSAGE");
+        this.emit(":ask", speechOutput, speechOutput);
+    },
+    "AMAZON.CancelIntent": function () {
+        this.emit(":tell", this.t("CANCEL_MESSAGE"));
+    },
+    "Unhandled": function () {
+        var speechOutput = this.t("TRIVIA_UNHANDLED", ANSWER_COUNT.toString());
+        this.emit(":ask", speechOutput, speechOutput);
+    },
+    "SessionEndedRequest": function () {
+        console.log("Session ended in trivia state: " + this.event.request.reason);
+    }
+});
+
+var helpStateHandlers = Alexa.CreateStateHandler(GAME_STATES.HELP, {
+    "helpTheUser": function (newGame) {
+        var askMessage = newGame ? this.t("ASK_MESSAGE_START") : this.t("REPEAT_QUESTION_MESSAGE") + this.t("STOP_MESSAGE");
+        var speechOutput = this.t("HELP_MESSAGE", GAME_LENGTH) + askMessage;
+        var repromptText = this.t("HELP_REPROMPT") + askMessage;
+        this.emit(":ask", speechOutput, repromptText);
+    },
+    "AMAZON.StartOverIntent": function () {
+        this.handler.state = GAME_STATES.START;
+        this.emitWithState("StartGame", false);
+    },
+    "AMAZON.RepeatIntent": function () {
+        var newGame = (this.attributes["speechOutput"] && this.attributes["repromptText"]) ? false : true;
+        this.emitWithState("helpTheUser", newGame);
+    },
+    "AMAZON.HelpIntent": function() {
+        var newGame = (this.attributes["speechOutput"] && this.attributes["repromptText"]) ? false : true;
+        this.emitWithState("helpTheUser", newGame);
+    },
+    "AMAZON.YesIntent": function() {
+        if (this.attributes["speechOutput"] && this.attributes["repromptText"]) {
+            this.handler.state = GAME_STATES.TRIVIA;
+            this.emitWithState("AMAZON.RepeatIntent");
+        } else {
+            this.handler.state = GAME_STATES.START;
+            this.emitWithState("StartGame", false);
+        }
+    },
+    "AMAZON.NoIntent": function() {
+        var speechOutput = this.t("NO_MESSAGE");
+        this.emit(":tell", speechOutput);
+    },
+    "AMAZON.StopIntent": function () {
+        var speechOutput = this.t("STOP_MESSAGE");
+        this.emit(":ask", speechOutput, speechOutput);
+    },
+    "AMAZON.CancelIntent": function () {
+        this.emit(":tell", this.t("CANCEL_MESSAGE"));
+    },
+    "Unhandled": function () {
+        var speechOutput = this.t("HELP_UNHANDLED");
+        this.emit(":ask", speechOutput, speechOutput);
+    },
+    "SessionEndedRequest": function () {
+        console.log("Session ended in help state: " + this.event.request.reason);
+    }
+});
+
+function handleUserGuess(userGaveUp) {
+    var answerSlotValid = isAnswerSlotValid(this.event.request.intent);
+    var speechOutput = "";
+    var speechOutputAnalysis = "";
+    var gameQuestions = this.attributes.questions;
+    var correctAnswerIndex = parseInt(this.attributes.correctAnswerIndex);
+    var currentScore = parseInt(this.attributes.score);
+    var currentQuestionIndex = parseInt(this.attributes.currentQuestionIndex);
+    var correctAnswerText = this.attributes.correctAnswerText;
+    var translatedQuestions = this.t("QUESTIONS");
+
+    if (answerSlotValid && parseInt(this.event.request.intent.slots.Answer.value) == this.attributes["correctAnswerIndex"]) {
+        currentScore++;
+        speechOutputAnalysis = this.t("ANSWER_CORRECT_MESSAGE");
+    } else {
+        if (!userGaveUp) {
+            speechOutputAnalysis = this.t("ANSWER_WRONG_MESSAGE");
+        }
+
+        speechOutputAnalysis += this.t("CORRECT_ANSWER_MESSAGE", correctAnswerIndex, correctAnswerText);
+    }
+
+    // Check if we can exit the game session after GAME_LENGTH questions (zero-indexed)
+    if (this.attributes["currentQuestionIndex"] == GAME_LENGTH - 1) {
+        speechOutput = userGaveUp ? "" : this.t("ANSWER_IS_MESSAGE");
+        speechOutput += speechOutputAnalysis + this.t("GAME_OVER_MESSAGE", currentScore.toString(), GAME_LENGTH.toString());
+
+        this.emit(":tell", speechOutput)
+    } else {
+        currentQuestionIndex += 1;
+        correctAnswerIndex = Math.floor(Math.random() * (ANSWER_COUNT));
+        var spokenQuestion = Object.keys(translatedQuestions[gameQuestions[currentQuestionIndex]])[0];
+        var roundAnswers = populateRoundAnswers.call(this, gameQuestions, currentQuestionIndex, correctAnswerIndex, translatedQuestions);
+        var questionIndexForSpeech = currentQuestionIndex + 1;
+        var repromptText = this.t("TELL_QUESTION_MESSAGE", questionIndexForSpeech.toString(), spokenQuestion);
+
+        for (var i = 0; i < ANSWER_COUNT; i++) {
+            repromptText += (i+1).toString() + ". " + roundAnswers[i] + ". "
+        }
+
+        speechOutput += userGaveUp ? "" : this.t("ANSWER_IS_MESSAGE");
+        speechOutput += speechOutputAnalysis + this.t("SCORE_IS_MESSAGE", currentScore.toString()) + repromptText;
+
+        Object.assign(this.attributes, {
+            "speechOutput": repromptText,
+            "repromptText": repromptText,
+            "currentQuestionIndex": currentQuestionIndex,
+            "correctAnswerIndex": correctAnswerIndex + 1,
+            "questions": gameQuestions,
+            "score": currentScore,
+            "correctAnswerText": translatedQuestions[gameQuestions[currentQuestionIndex]][Object.keys(translatedQuestions[gameQuestions[currentQuestionIndex]])[0]][0]
+        });
+
+        this.emit(":askWithCard", speechOutput, repromptText, this.t("GAME_NAME"), repromptText);
+    }
+}
+
+function populateGameQuestions(translatedQuestions) {
+    var gameQuestions = [];
+    var indexList = [];
+    var index = translatedQuestions.length;
+
+    if (GAME_LENGTH > index){
+        throw new Error("Invalid Game Length.");
+    }
+
+    for (var i = 0; i < translatedQuestions.length; i++){
+        indexList.push(i);
+    }
+
+    // Pick GAME_LENGTH random questions from the list to ask the user, make sure there are no repeats.
+    for (var j = 0; j < GAME_LENGTH; j++){
+        var rand = Math.floor(Math.random() * index);
+        index -= 1;
+
+        var temp = indexList[index];
+        indexList[index] = indexList[rand];
+        indexList[rand] = temp;
+        gameQuestions.push(indexList[index]);
+    }
+
+    return gameQuestions;
+}
+
+/**
+ * Get the answers for a given question, and place the correct answer at the spot marked by the
+ * correctAnswerTargetLocation variable. Note that you can have as many answers as you want but
+ * only ANSWER_COUNT will be selected.
+ * */
+function populateRoundAnswers(gameQuestionIndexes, correctAnswerIndex, correctAnswerTargetLocation, translatedQuestions) {
+    var answers = [];
+    var answersCopy = translatedQuestions[gameQuestionIndexes[correctAnswerIndex]][Object.keys(translatedQuestions[gameQuestionIndexes[correctAnswerIndex]])[0]].slice();
+    var index = answersCopy.length;
+
+    if (index < ANSWER_COUNT) {
+        throw new Error("Not enough answers for question.");
+    }
+
+    // Shuffle the answers, excluding the first element which is the correct answer.
+    for (var j = 1; j < answersCopy.length; j++){
+        var rand = Math.floor(Math.random() * (index - 1)) + 1;
+        index -= 1;
+
+        var temp = answersCopy[index];
+        answersCopy[index] = answersCopy[rand];
+        answersCopy[rand] = temp;
+    }
+
+    // Swap the correct answer into the target location
+    for (var i = 0; i < ANSWER_COUNT; i++) {
+        answers[i] = answersCopy[i];
+    }
+    temp = answers[0];
+    answers[0] = answers[correctAnswerTargetLocation];
+    answers[correctAnswerTargetLocation] = temp;
+    return answers;
+}
+
+function isAnswerSlotValid(intent) {
+    var answerSlotFilled = intent && intent.slots && intent.slots.Answer && intent.slots.Answer.value;
+    var answerSlotIsInt = answerSlotFilled && !isNaN(parseInt(intent.slots.Answer.value));
+    return answerSlotIsInt && parseInt(intent.slots.Answer.value) < (ANSWER_COUNT + 1) && parseInt(intent.slots.Answer.value) > 0;
+}
