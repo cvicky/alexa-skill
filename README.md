@@ -1,6 +1,6 @@
 # alexa-skill
 
-##New York Learner's Permit Questions
+## New York Learner's Permit Questions
 
 Need help studying for the New York Learner's Permit Exam? Alexa is up for the job of being your study buddy and is full of practice questions to quiz you on a moment's notice.
 
