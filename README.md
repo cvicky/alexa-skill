@@ -8,7 +8,7 @@ Check it out [here](https://www.amazon.com/dp/B0747S8F8L)!
 
 This is set up on AWS leveraging AWS Lambda, the Alexa Skills Kit (ASK), and the ASK SDK.
 
-## Goals of this project:
+## Goals of this project
 
 *Create a parameter-based skill 
 
